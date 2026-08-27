@@ -80,25 +80,32 @@ void Config::readConfig()
         //Debug::AddInfo(PSTR("readConfig . . . Len: %d Crc: %d"), len, nowCrc);
 
         uint8_t *data = (uint8_t *)malloc(len);
-        if (spi_flash_read(EEPROM_PHYS_ADDR + 6, (uint32 *)data, len) == SPI_FLASH_RESULT_OK)
+        if (data == NULL)
         {
-            uint16_t crc = crc16(data, len);
-            if (crc == nowCrc)
+            Debug::AddError(PSTR("readConfig . . . malloc failed"));
+        }
+        else
+        {
+            if (spi_flash_read(EEPROM_PHYS_ADDR + 6, (uint32 *)data, len) == SPI_FLASH_RESULT_OK)
             {
-                memset(&globalConfig, 0, sizeof(GlobalConfigMessage));
-                pb_istream_t stream = pb_istream_from_buffer(data, len);
-                status = pb_decode(&stream, GlobalConfigMessage_fields, &globalConfig);
-                if (globalConfig.http.port == 0)
+                uint16_t crc = crc16(data, len);
+                if (crc == nowCrc)
                 {
-                    globalConfig.http.port = 80;
+                    memset(&globalConfig, 0, sizeof(GlobalConfigMessage));
+                    pb_istream_t stream = pb_istream_from_buffer(data, len);
+                    status = pb_decode(&stream, GlobalConfigMessage_fields, &globalConfig);
+                    if (globalConfig.http.port == 0)
+                    {
+                        globalConfig.http.port = 80;
+                    }
+                }
+                else
+                {
+                    Debug::AddError(PSTR("readConfig . . . Error Crc: %d Crc: %d"), crc, nowCrc);
                 }
             }
-            else
-            {
-                Debug::AddError(PSTR("readConfig . . . Error Crc: %d Crc: %d"), crc, nowCrc);
-            }
+            free(data);
         }
-        free(data);
     }
 
     if (!status)
@@ -149,6 +156,11 @@ bool Config::saveConfig(bool isEverySecond)
 
     // 读取原来数据
     uint8_t *data = (uint8_t *)malloc(SPI_FLASH_SEC_SIZE);
+    if (data == NULL)
+    {
+        Debug::AddError(PSTR("saveConfig . . . malloc failed"));
+        return false;
+    }
     if (spi_flash_read(EEPROM_PHYS_ADDR, (uint32 *)data, SPI_FLASH_SEC_SIZE) != SPI_FLASH_RESULT_OK)
     {
         free(data);

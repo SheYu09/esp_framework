@@ -111,7 +111,18 @@ void Debug::AddLog(uint8_t loglevel)
             it++;                                              // Skip delimiting "\1"
             memmove(webLog, it, WEB_LOG_SIZE - (it - webLog)); // Move buffer forward to remove oldest log line
         }
-        snprintf_P(webLog, sizeof(webLog), PSTR("%s%c%s%s\1"), webLog, webLogIndex++, mxtime, tmpData);
+        // 追加到 webLog: [index][mxtime][tmpData]['\1']['\0']
+        // 不用 snprintf(webLog, ..., webLog, ...) 避免源目标重叠(UB)
+        size_t wl = strlen(webLog);
+        size_t mtl = strlen(mxtime);
+        size_t tl = strlen(tmpData);
+        webLog[wl++] = (char)webLogIndex++;
+        memcpy(webLog + wl, mxtime, mtl);
+        wl += mtl;
+        memcpy(webLog + wl, tmpData, tl);
+        wl += tl;
+        webLog[wl++] = '\1';
+        webLog[wl] = '\0';
         if (!webLogIndex)
             webLogIndex++; // Index 0 is not allowed as it is the end of char string
     }
