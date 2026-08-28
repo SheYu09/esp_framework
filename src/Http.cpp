@@ -547,7 +547,8 @@ void Http::handleScanWifi()
         return;
     }
     int n = WiFi.scanNetworks();
-    if (n == 0)
+    // scanNetworks 同步模式失败/异常时可能返回负值, 负长度 VLA 会导致栈破坏
+    if (n <= 0)
     {
         server->send_P(200, PSTR("text/html"), PSTR("{\"code\":1,\"msg\":\"\",\"data\":{\"list\":[]}}"));
         //server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"找不到网络，请重新试试。\"}"));
@@ -832,7 +833,9 @@ void Http::handleGetStatus()
     {
         if (!counter)
         {
-            counter = Debug::webLogIndex;
+            // 首次请求 (无 i 参数): 从最老条目索引开始输出, 让日志页打开即可看到历史日志;
+            // 原逻辑置为 webLogIndex 会跳过全部已有日志, 页面打开时若日志不增长则永远空白
+            counter = Debug::webLog[0];
             cflg = false;
         }
         do

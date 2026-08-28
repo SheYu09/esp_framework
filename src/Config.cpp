@@ -65,7 +65,7 @@ void Config::readConfig()
     {
     }
 
-    uint16 len;
+    uint16 len = 0;
     bool status = false;
     uint16 cfg = (buf[0] << 8 | buf[1]);
     if (cfg == GLOBAL_CFG_VERSION)
@@ -257,6 +257,13 @@ bool Config::moduleSaveConfig(uint16_t version, uint16_t size, const pb_field_t 
     if (status)
     {
         size_t len = stream.bytes_written;
+        // module_cfg.bytes 容量 500, 模块配置过大时 memcpy 会越界写,
+        // 拒绝保存并返回失败, 由上层模块自行处理
+        if (len > sizeof(globalConfig.module_cfg.bytes))
+        {
+            Debug::AddError(PSTR("moduleSaveConfig . . . too large: %d"), (int)len);
+            return false;
+        }
         uint16_t crc = Config::crc16(buffer, len);
         if (crc != globalConfig.module_crc)
         {

@@ -37,7 +37,6 @@ public:
     static void setupWifiManager(bool resetSettings);
     static bool isIp(String str);
 
-    static uint8_t waitForConnectResult();
     static void tryConnect(String ssid, String pass);
 
     static void loop();
