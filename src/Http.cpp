@@ -12,6 +12,41 @@ ESP8266WebServer *Http::server;
 bool Http::isBegin = false;
 bool Http::updateAuthFailed = false;
 
+// HTML 转义, 防止用户可控值 (SSID/UID/服务器地址等) 回显到页面时产生 HTML 注入/XSS
+static String htmlEscapeStr(const char *s)
+{
+    String r;
+    if (!s)
+    {
+        return r;
+    }
+    for (; *s; s++)
+    {
+        switch (*s)
+        {
+        case '&':
+            r += F("&amp;");
+            break;
+        case '<':
+            r += F("&lt;");
+            break;
+        case '>':
+            r += F("&gt;");
+            break;
+        case '"':
+            r += F("&quot;");
+            break;
+        case '\'':
+            r += F("&#39;");
+            break;
+        default:
+            r += *s;
+            break;
+        }
+    }
+    return r;
+}
+
 void Http::handleRoot()
 {
     if (captivePortal())
@@ -48,6 +83,9 @@ void Http::handleRoot()
 
     // TAB 1 Start
     uint8_t mode = WiFi.getMode();
+    // UID 与当前 SSID 均可能含 HTML 特殊字符, 输出前转义防注入
+    String safeUid = htmlEscapeStr(UID);
+    String safeSsid = htmlEscapeStr(WiFi.SSID().c_str());
     snprintf_P(tmpData, sizeof(tmpData),
                PSTR("<div id='tab'>"
                     "<div id='tab1' style='display: block;'>"
@@ -55,9 +93,9 @@ void Http::handleRoot()
                     "<tr><td>主机名</td><td>%s</td></tr>"
                     "<tr><td>WiFi模式</td><td>%s</td></tr>"
                     "<tr><td>SSID</td><td>%s</td></tr>"),
-               UID,
+               safeUid.c_str(),
                (mode == WIFI_STA ? PSTR("STA") : (mode == WIFI_AP ? PSTR("AP") : PSTR("AP STA"))),
-               WiFi.SSID().c_str());
+               safeSsid.c_str());
     server->sendContent_P(tmpData);
 
     snprintf_P(tmpData, sizeof(tmpData),
@@ -153,7 +191,7 @@ void Http::handleRoot()
         PSTR("<form method='post' action='/module_setting' onsubmit='postform(this);return false'>"
              "<table class='gridtable'><thead><tr><th colspan='2'>模块设置</th></tr></thead><tbody>"));
 
-    snprintf_P(tmpData, sizeof(tmpData), PSTR("<tr><td>主机名</td><td><input type='text' name='uid' value='%s'>&nbsp;具有唯一性，留空默认</td></tr>"), UID);
+    snprintf_P(tmpData, sizeof(tmpData), PSTR("<tr><td>主机名</td><td><input type='text' name='uid' value='%s'>&nbsp;具有唯一性，留空默认</td></tr>"), safeUid.c_str());
     server->sendContent_P(tmpData);
 
     server->sendContent_P(
@@ -174,7 +212,7 @@ void Http::handleRoot()
                     "<input type='text' name='log_syslog_host' style='width:150px' value='%s'> : "
                     "<input type='number' name='log_syslog_port' value='%d' min='0' max='65000' style='width:50px'>"
                     "</td></tr>"),
-               globalConfig.debug.server, globalConfig.debug.port);
+               htmlEscapeStr(globalConfig.debug.server).c_str(), globalConfig.debug.port);
     server->sendContent_P(tmpData);
 #endif
 
@@ -182,7 +220,7 @@ void Http::handleRoot()
                PSTR("<tr><td>NTP服务器</td><td>"
                     "<input type='text' name='ntp' style='width:150px' value='%s'> 建议在获取时间失败时才填写"
                     "</td></tr>"),
-               globalConfig.wifi.ntp);
+               htmlEscapeStr(globalConfig.wifi.ntp).c_str());
     server->sendContent_P(tmpData);
 
     server->sendContent_P(
@@ -305,6 +343,13 @@ void Http::handledhcp()
     if (!Wifi::isIp(gateway))
     {
         server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"网关地址错误\"}"));
+        return;
+    }
+    // 数组容量: char ip/sn/gw[15], 最长合法 IP "255.255.255.255" 为 15 字符,
+    // strcpy 写入含 '\0' 共 16 字节会越界 1 字节破坏相邻配置, 因此拒绝 15 字符的极端值
+    if (ip.length() >= sizeof(globalConfig.wifi.ip) || netmask.length() >= sizeof(globalConfig.wifi.sn) || gateway.length() >= sizeof(globalConfig.wifi.gw))
+    {
+        server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"IP地址或掩码地址过长\"}"));
         return;
     }
 
@@ -577,15 +622,51 @@ void Http::handleScanWifi()
         }
         first = false;
         // SSID 做 JSON 转义: 恶意命名的 WiFi (含 \\ \" 或控制字符) 会破坏 JSON 结构,
-        // 导致前端解析失败或注入
+        // 导致前端解析失败或注入; 控制字符 (0x00-0x1F) 全部转义为 \uXXXX
         String ssid = WiFi.SSID(indices[i]);
-        ssid.replace(F("\\"), F("\\\\"));
-        ssid.replace(F("\""), F("\\\""));
-        ssid.replace(F("\n"), F("\\n"));
-        ssid.replace(F("\r"), F("\\r"));
-        ssid.replace(F("\t"), F("\\t"));
+        String escaped;
+        for (size_t k = 0; k < ssid.length(); k++)
+        {
+            char c = ssid[k];
+            switch (c)
+            {
+            case '\\':
+                escaped += F("\\\\");
+                break;
+            case '"':
+                escaped += F("\\\"");
+                break;
+            case '\b':
+                escaped += F("\\b");
+                break;
+            case '\f':
+                escaped += F("\\f");
+                break;
+            case '\n':
+                escaped += F("\\n");
+                break;
+            case '\r':
+                escaped += F("\\r");
+                break;
+            case '\t':
+                escaped += F("\\t");
+                break;
+            default:
+                if ((uint8_t)c < 0x20)
+                {
+                    char hex[7];
+                    snprintf_P(hex, sizeof(hex), PSTR("\\u%04x"), (uint8_t)c);
+                    escaped += hex;
+                }
+                else
+                {
+                    escaped += c;
+                }
+                break;
+            }
+        }
         snprintf_P(tmpData, sizeof(tmpData), PSTR("{\"name\":\"%s\",\"rssi\":%d,\"quality\":%d,\"type\":%d}"),
-                   ssid.c_str(), RSSI, quality, WiFi.encryptionType(indices[i]));
+                   escaped.c_str(), RSSI, quality, WiFi.encryptionType(indices[i]));
         server->sendContent_P(tmpData);
     }
 
@@ -605,6 +686,17 @@ void Http::handleWifi()
         return;
     }
     String password = server->arg(F("wifi_password"));
+    // 数组容量: ssid[20] pass[30], strcpy 前校验长度防缓冲区溢出
+    if (wifi.length() >= sizeof(globalConfig.wifi.ssid))
+    {
+        server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"WiFi名称过长(最长19位)\"}"));
+        return;
+    }
+    if (password.length() >= sizeof(globalConfig.wifi.pass))
+    {
+        server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"WiFi密码过长(最长29位)\"}"));
+        return;
+    }
 
     if (WiFi.getMode() == WIFI_STA)
     {
@@ -1012,8 +1104,20 @@ void Http::handleModuleSetting()
             server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"syslog服务器不能为空\"}"));
             return;
         }
+        // server[40], 超长输入会导致 strcpy 缓冲区溢出
+        if (log_syslog_host.length() >= sizeof(globalConfig.debug.server))
+        {
+            server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"syslog服务器地址过长\"}"));
+            return;
+        }
+        int syslog_port = log_syslog_port.toInt();
+        if (syslog_port < 1 || syslog_port > 65535)
+        {
+            server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"syslog端口错误\"}"));
+            return;
+        }
         strcpy(globalConfig.debug.server, log_syslog_host.c_str());
-        globalConfig.debug.port = log_syslog_port.toInt();
+        globalConfig.debug.port = (uint16_t)syslog_port;
         WiFi.hostByName(globalConfig.debug.server, Debug::ip);
     }
 #endif
@@ -1025,6 +1129,12 @@ void Http::handleModuleSetting()
     }
 
     String ntp = server->arg(F("ntp"));
+    // ntp[40], 超长输入会导致 strcpy 缓冲区溢出
+    if (ntp.length() >= sizeof(globalConfig.wifi.ntp))
+    {
+        server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"NTP服务器地址过长(最长39位)\"}"));
+        return;
+    }
     if (strcmp(globalConfig.wifi.ntp, ntp.c_str()) != 0)
     {
         strcpy(globalConfig.wifi.ntp, ntp.c_str());
@@ -1032,6 +1142,13 @@ void Http::handleModuleSetting()
     }
 
     String uid = server->arg(F("uid"));
+    // uid 最终被 strcpy 到 UID[16] (Framework::setup), 最长只能 15 字符,
+    // 否则写穿 UID 破坏相邻内存
+    if (uid.length() >= sizeof(UID))
+    {
+        server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"主机名过长(最长15位)\"}"));
+        return;
+    }
     strcpy(globalConfig.uid, uid.c_str());
     Config::saveConfig();
     if (uid.length() == 0 || strcmp(globalConfig.uid, UID) != 0)
