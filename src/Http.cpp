@@ -83,7 +83,7 @@ void Http::handleRoot()
              "<tr><td colspan='2'><button type='submit' class='btn-info'>连接WiFi</button></td></tr>"
              "<tr><td colspan='2'><button type='button' class='btn-danger' onclick='scanWifi()'>搜索WiFi</button></td></tr>"
              "</tbody></table></form>"
-             "<script type='text/javascript'>function clickwifi(t){id('wifi_ssid').value=t.value}function scanWifi(){ajaxPost('scan_wifi','',function(data){if(data.code==1){if(data.data.list.length==0){scanWifi();return;}var trs=document.getElementsByClassName('addwifi');for(var i=trs.length-1;i>=0;i--){trs[i].remove()}for(var a in data.data.list){var w=data.data.list[a];var tr=document.createElement(\"tr\");var td=document.createElement(\"td\");tr.setAttribute('class','addwifi');td.innerHTML=\"<label class='bui-radios-label'><input type='radio' name='wifi' onclick='clickwifi(this)' value='\"+w.name+\"'/><i class='bui-radios'></i> \"+w.name+(w.type==7?' [开放]':'')+\"</label>\";tr.appendChild(td);td=document.createElement(\"td\");td.innerHTML=w.rssi+'dBm '+w.quality+'%';tr.appendChild(td);var oldEle=id('clusss');oldEle.parentNode.insertBefore(tr,oldEle)}}else{toast(data.msg,data.code?5000:9000,data.code)}})}</script>"));
+             "<script type='text/javascript'>function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}function clickwifi(t){id('wifi_ssid').value=t.value}function scanWifi(){ajaxPost('scan_wifi','',function(data){if(data.code==1){if(data.data.list.length==0){scanWifi();return;}var trs=document.getElementsByClassName('addwifi');for(var i=trs.length-1;i>=0;i--){trs[i].remove()}for(var a in data.data.list){var w=data.data.list[a];var tr=document.createElement(\"tr\");var td=document.createElement(\"td\");tr.setAttribute('class','addwifi');td.innerHTML=\"<label class='bui-radios-label'><input type='radio' name='wifi' onclick='clickwifi(this)' value='\"+esc(w.name)+\"'/><i class='bui-radios'></i> \"+esc(w.name)+(w.type==7?' [开放]':'')+\"</label>\";tr.appendChild(td);td=document.createElement(\"td\");td.innerHTML=w.rssi+'dBm '+w.quality+'%';tr.appendChild(td);var oldEle=id('clusss');oldEle.parentNode.insertBefore(tr,oldEle)}}else{toast(data.msg,data.code?5000:9000,data.code)}})}</script>"));
 
     server->sendContent_P(
         PSTR("<form method='post' action='/dhcp' onsubmit='postform(this);return false'>"
@@ -576,8 +576,16 @@ void Http::handleScanWifi()
             server->sendContent_P(PSTR(","));
         }
         first = false;
+        // SSID 做 JSON 转义: 恶意命名的 WiFi (含 \\ \" 或控制字符) 会破坏 JSON 结构,
+        // 导致前端解析失败或注入
+        String ssid = WiFi.SSID(indices[i]);
+        ssid.replace(F("\\"), F("\\\\"));
+        ssid.replace(F("\""), F("\\\""));
+        ssid.replace(F("\n"), F("\\n"));
+        ssid.replace(F("\r"), F("\\r"));
+        ssid.replace(F("\t"), F("\\t"));
         snprintf_P(tmpData, sizeof(tmpData), PSTR("{\"name\":\"%s\",\"rssi\":%d,\"quality\":%d,\"type\":%d}"),
-                   WiFi.SSID(indices[i]).c_str(), RSSI, quality, WiFi.encryptionType(indices[i]));
+                   ssid.c_str(), RSSI, quality, WiFi.encryptionType(indices[i]));
         server->sendContent_P(tmpData);
     }
 
