@@ -54,13 +54,17 @@ void Framework::setup()
     }
     if (globalConfig.uid[0] != '\0')
     {
-        strcpy(UID, globalConfig.uid);
+        // 旧版本固件未限制 uid 长度, flash 中可能存有超过 UID[16] 的数据,
+        // strncpy 截断保护防止 strcpy 写穿 UID 破坏相邻内存
+        strncpy(UID, globalConfig.uid, sizeof(UID) - 1);
+        UID[sizeof(UID) - 1] = '\0';
     }
     else
     {
         uint8_t mac[6];
         wifi_get_macaddr(STATION_IF, mac);
-        sprintf(UID, "%s_%02x%02x%02x", module->getModuleName().c_str(), mac[3], mac[4], mac[5]);
+        // 模块名 + "_" + 6位MAC 可能超过 UID[16], snprintf 截断防止写穿
+        snprintf(UID, sizeof(UID), "%s_%02x%02x%02x", module->getModuleName().c_str(), mac[3], mac[4], mac[5]);
     }
     Util::strlowr(UID);
 

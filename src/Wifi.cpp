@@ -43,6 +43,7 @@ void Wifi::setupWifi()
     WiFi.hostname(UID);
     Debug::AddInfo(PSTR("Connecting to %s %s Wifi"), globalConfig.wifi.ssid, globalConfig.wifi.pass);
     STAGotIP = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &event) {
+        (void)event;
 #ifdef WIFI_CONNECT_TIMEOUT
         connectStart = 0;
 #endif
@@ -96,6 +97,7 @@ void Wifi::setupWifiManager(bool resetSettings)
     //WiFi.setAutoReconnect(true);
     WiFi.hostname(UID);
     STAGotIP = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &event) {
+        (void)event;
         Debug::AddInfo(PSTR("WiFi2 connected. SSID: %s IP address: %s"), WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
     });
 

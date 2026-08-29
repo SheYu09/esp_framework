@@ -119,8 +119,17 @@ void Debug::AddLog(uint8_t loglevel)
         webLog[wl++] = (char)webLogIndex++;
         memcpy(webLog + wl, mxtime, mtl);
         wl += mtl;
-        memcpy(webLog + wl, tmpData, tl);
-        wl += tl;
+        // 日志文本中的 '\1' 与条目分隔符冲突, 会破坏 webLog 结构导致 GetLog 解析错乱,
+        // 统一替换为空格
+        for (size_t i = 0; i < tl; i++)
+        {
+            char c = tmpData[i];
+            if (c == '\1')
+            {
+                c = ' ';
+            }
+            webLog[wl++] = c;
+        }
         webLog[wl++] = '\1';
         webLog[wl] = '\0';
         if (!webLogIndex)

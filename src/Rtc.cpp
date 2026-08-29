@@ -168,7 +168,6 @@ void Rtc::getNtp()
 
 void Rtc::perSecondDo()
 {
-    bool isAdd = false;
     if (utcTime == 0 || perSecond % 600 == 0)
     {
         bitSet(operationFlag, 0);

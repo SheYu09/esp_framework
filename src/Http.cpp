@@ -853,7 +853,7 @@ void Http::handleGetStatus()
                 size_t j = 0;
                 // 转义后字节数可能超过 tmpData 容量 (日志含大量 \ 或 " 时最多膨胀一倍),
                 // 必须限界, 防止写穿 512 字节缓冲区破坏相邻全局数据
-                for (size_t i = 0; i < len - 1 && j < sizeof(tmpData) - 2; i++)
+                for (size_t i = 0; i + 1 < (size_t)len && j < sizeof(tmpData) - 2; i++)
                 {
                     char each = tmp[i];
                     if (each == '\\' || each == '"')
