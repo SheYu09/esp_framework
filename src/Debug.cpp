@@ -102,8 +102,11 @@ void Debug::AddLog(uint8_t loglevel)
     {
         if (!webLogIndex)
             webLogIndex++;                                           // Index 0 is not allowed as it is the end of char string
-        while (webLogIndex == webLog[0] ||                           // If log already holds the next index, remove it
-               strlen(webLog) + strlen(tmpData) + 13 > WEB_LOG_SIZE) // 13 = web_log_index + mxtime + '\1' + '\0'
+        // webLog 已空 (strlen==0) 时停止移除: 超长日志 (tmpData >499 字符) 下
+        // strlen(webLog)+strlen(tmpData)+13 恒大于 WEB_LOG_SIZE, 否则会死循环
+        while (strlen(webLog) > 0 &&
+               (webLogIndex == webLog[0] ||                           // If log already holds the next index, remove it
+                strlen(webLog) + strlen(tmpData) + 13 > WEB_LOG_SIZE)) // 13 = web_log_index + mxtime + '\1' + '\0'
         {
             char *it = webLog;
             it++;                                              // Skip web_log_index
@@ -116,6 +119,12 @@ void Debug::AddLog(uint8_t loglevel)
         size_t wl = strlen(webLog);
         size_t mtl = strlen(mxtime);
         size_t tl = strlen(tmpData);
+        // 超长日志 (tmpData 最长 511 字符) 写穿 webLog 会破坏相邻全局数据,
+        // 预留 [idx(1)]['\1'(1)]['\0'(1)] 后截断日志文本
+        if (tl > WEB_LOG_SIZE - wl - mtl - 3)
+        {
+            tl = WEB_LOG_SIZE - wl - mtl - 3;
+        }
         webLog[wl++] = (char)webLogIndex++;
         memcpy(webLog + wl, mxtime, mtl);
         wl += mtl;

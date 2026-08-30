@@ -730,6 +730,12 @@ void Http::handleOperate()
         Config::saveConfig();
         server->send_P(200, PSTR("text/html"), PSTR("{\"code\":1,\"msg\":\"正在重置模块 . . . 设备将会重启。\"}"));
     }
+    else
+    {
+        // 非 1/2 的操作参数拒绝执行, 避免任意 d 值都触发重启
+        server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"参数错误\"}"));
+        return;
+    }
     delay(200);
 
     Led::blinkLED(400, 4);
@@ -784,7 +790,9 @@ void Http::handleNotFound()
     snprintf_P(tmpData, sizeof(tmpData), PSTR("File Not Found\n\nURI: %s\nMethod: %s\nArguments: %d\n"),
                server->uri().c_str(), server->method() == HTTP_GET ? PSTR("GET") : PSTR("POST"), server->args());
     server->send_P(404, PSTR("text/plain"), tmpData);
-    for (uint8_t i = 0; i < server->args(); i++)
+    // args() 返回 int, 恶意请求可携带超过 255 个参数, uint8_t 循环变量会回绕成死循环
+    int nargs = server->args();
+    for (int i = 0; i < nargs; i++)
     {
         snprintf_P(tmpData, sizeof(tmpData), PSTR(" %s: %s\n"), server->argName(i).c_str(), server->arg(i).c_str());
         server->sendContent_P(tmpData);

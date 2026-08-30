@@ -19,7 +19,10 @@ void Led::init(uint8_t _io, uint8_t _light)
     ledTicker = new Ticker();
     ledTicker2 = new Ticker();
 
-    off();
+    // off() 依赖 isOn 状态机 (isOn 为 false 时不写引脚), 初始化时直接写灭,
+    // 否则引脚电平从未设置, 上电后 LED 可能意外点亮
+    isOn = false;
+    digitalWrite(io, !light);
 }
 
 void Led::loop()
