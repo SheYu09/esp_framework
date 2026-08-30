@@ -35,6 +35,7 @@ class Rtc
 protected:
     static uint32_t rtcRebootCrc;
     static uint8_t operationFlag;
+    static uint8_t lastNtpDay; // 上次 NTP 校准日 (day_of_month), 用于每天 23:09 只校准一次
     static void getNtp();
 
 public:

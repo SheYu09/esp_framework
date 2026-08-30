@@ -8,6 +8,7 @@ uint32_t Rtc::rtcRebootCrc = 0;
 TIME_T Rtc::rtcTime;
 uint32_t Rtc::utcTime;
 uint8_t Rtc::operationFlag = 0;
+uint8_t Rtc::lastNtpDay = 0;
 static const uint8_t kDaysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}; // API starts months from 1, this array starts from 0
 static const char kMonthNamesEnglish[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
 
@@ -168,9 +169,20 @@ void Rtc::getNtp()
 
 void Rtc::perSecondDo()
 {
-    if (utcTime == 0 || perSecond % 600 == 0)
+    // 时间未同步 (utcTime==0) 时每秒请求, 尽快完成首次同步;
+    // 已同步后改为每天 23:09 校准一次, 不再每 10 分钟读取
+    if (utcTime == 0)
     {
         bitSet(operationFlag, 0);
+    }
+    else if (rtcTime.hour == 23 && rtcTime.minute == 9 && rtcTime.day_of_month != lastNtpDay)
+    {
+        // WiFi 未连接时不标记, 23:09 这一分钟内持续重试, 避免当日校准失败后不再尝试
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            lastNtpDay = rtcTime.day_of_month;
+            bitSet(operationFlag, 0);
+        }
     }
     if (utcTime > 0)
     {
