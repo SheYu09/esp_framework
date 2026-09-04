@@ -34,9 +34,9 @@ typedef struct _WifiConfigMessage {
     char ssid[20];
     char pass[30];
     bool is_static;
-    char ip[15];
-    char sn[15];
-    char gw[15];
+    char ip[16];
+    char sn[16];
+    char gw[16];
     char ntp[40];
 /* @@protoc_insertion_point(struct:WifiConfigMessage) */
 } WifiConfigMessage;

@@ -194,17 +194,22 @@ void Http::handleRoot()
     snprintf_P(tmpData, sizeof(tmpData), PSTR("<tr><td>主机名</td><td><input type='text' name='uid' value='%s'>&nbsp;具有唯一性，留空默认</td></tr>"), safeUid.c_str());
     server->sendContent_P(tmpData);
 
+    server->sendContent_P(PSTR("<tr><td>日志输出</td><td>"));
+#ifndef DISABLE_SERIAL_LOG
+    // GPIO1/3、GPIO2 被外设占用时定义 DISABLE_SERIAL_LOG, 隐藏 Serial/Serial1 勾选
     server->sendContent_P(
-        PSTR("<tr><td>日志输出</td><td>"
-             "<label class='bui-radios-label'><input type='checkbox' name='log_serial' value='1'/><i class='bui-radios' style='border-radius:20%'></i> Serial</label>&nbsp;&nbsp;&nbsp;&nbsp;"
-             "<label class='bui-radios-label'><input type='checkbox' name='log_serial1' value='1'/><i class='bui-radios' style='border-radius:20%'></i> Serial1</label>&nbsp;&nbsp;&nbsp;&nbsp;"
+        PSTR("<label class='bui-radios-label'><input type='checkbox' name='log_serial' value='1'/><i class='bui-radios' style='border-radius:20%'></i> Serial</label>&nbsp;&nbsp;&nbsp;&nbsp;"
+             "<label class='bui-radios-label'><input type='checkbox' name='log_serial1' value='1'/><i class='bui-radios' style='border-radius:20%'></i> Serial1</label>&nbsp;&nbsp;&nbsp;&nbsp;"));
+#endif
 #ifdef USE_SYSLOG
-             "<label class='bui-radios-label'><input type='checkbox' name='log_syslog' value='1'/><i class='bui-radios' style='border-radius:20%'></i> syslog</label>&nbsp;&nbsp;&nbsp;&nbsp;"
+    server->sendContent_P(
+        PSTR("<label class='bui-radios-label'><input type='checkbox' name='log_syslog' value='1'/><i class='bui-radios' style='border-radius:20%'></i> syslog</label>&nbsp;&nbsp;&nbsp;&nbsp;"));
 #endif
 #ifdef WEB_LOG_SIZE
-             "<label class='bui-radios-label'><input type='checkbox' name='log_web' value='1'/><i class='bui-radios' style='border-radius:20%'></i> web</label>&nbsp;&nbsp;&nbsp;&nbsp;"
+    server->sendContent_P(
+        PSTR("<label class='bui-radios-label'><input type='checkbox' name='log_web' value='1'/><i class='bui-radios' style='border-radius:20%'></i> web</label>&nbsp;&nbsp;&nbsp;&nbsp;"));
 #endif
-             "</td></tr>"));
+    server->sendContent_P(PSTR("</td></tr>"));
 
 #ifdef USE_SYSLOG
     snprintf_P(tmpData, sizeof(tmpData),
@@ -298,10 +303,12 @@ void Http::handleRoot()
     server->sendContent_P(tmpData);
 
     // TAB 3
+#ifndef DISABLE_SERIAL_LOG
     if ((1 & globalConfig.debug.type) == 1)
     {
         server->sendContent_P(PSTR("setRadioValue('log_serial', '1');"));
     }
+#endif
 #ifdef USE_SYSLOG
     if ((2 & globalConfig.debug.type) == 2)
     {
@@ -314,10 +321,12 @@ void Http::handleRoot()
         server->sendContent_P(PSTR("setRadioValue('log_web', '1');"));
     }
 #endif
+#ifndef DISABLE_SERIAL_LOG
     if ((8 & globalConfig.debug.type) == 8)
     {
         server->sendContent_P(PSTR("setRadioValue('log_serial1', '1');"));
     }
+#endif
     server->sendContent_P(PSTR("</script>"));
 }
 
@@ -345,8 +354,8 @@ void Http::handledhcp()
         server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"网关地址错误\"}"));
         return;
     }
-    // 数组容量: char ip/sn/gw[15], 最长合法 IP "255.255.255.255" 为 15 字符,
-    // strcpy 写入含 '\0' 共 16 字节会越界 1 字节破坏相邻配置, 因此拒绝 15 字符的极端值
+    // 数组容量: char ip/sn/gw[16], 最长合法 IP "255.255.255.255" 为 15 字符,
+    // 含 '\0' 共 16 字节, 恰好放下; 拒绝 16 字符及以上的非法输入
     if (ip.length() >= sizeof(globalConfig.wifi.ip) || netmask.length() >= sizeof(globalConfig.wifi.sn) || gateway.length() >= sizeof(globalConfig.wifi.gw))
     {
         server->send_P(200, PSTR("text/html"), PSTR("{\"code\":0,\"msg\":\"IP地址或掩码地址过长\"}"));
@@ -1089,6 +1098,7 @@ void Http::handleModuleSetting()
     }
 
     int t = 0;
+#ifndef DISABLE_SERIAL_LOG
     if (server->arg(F("log_serial")).equals(F("1")))
     {
         t = t | 1;
@@ -1097,6 +1107,7 @@ void Http::handleModuleSetting()
     {
         t = t | 8;
     }
+#endif
 #ifdef WEB_LOG_SIZE
     if (server->arg(F("log_web")).equals(F("1")))
     {

@@ -163,8 +163,10 @@ void Wifi::loop()
 
     if (_ssid.length() > 0 && WiFi.isConnected())
     {
-        strcpy(globalConfig.wifi.ssid, _ssid.c_str());
-        strcpy(globalConfig.wifi.pass, _pass.c_str());
+        // 定长数组拷贝必须截断: _ssid/_pass 来自 POST /wifi, 页面控件长度约束只是前端,
+        // 这里兜底防止任何其他路径写入超长内容
+        snprintf(globalConfig.wifi.ssid, sizeof(globalConfig.wifi.ssid), "%s", _ssid.c_str());
+        snprintf(globalConfig.wifi.pass, sizeof(globalConfig.wifi.pass), "%s", _pass.c_str());
         Config::saveConfig();
 
         //	为了使WEB获取到IP 2秒后才关闭AP

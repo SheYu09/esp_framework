@@ -32,7 +32,13 @@ void Framework::one(unsigned long baud)
     rebootCount = Rtc::rtcReboot.fast_reboot_count > BOOT_LOOP_OFFSET ? Rtc::rtcReboot.fast_reboot_count - BOOT_LOOP_OFFSET : 0;
 
     Serial.begin(baud);
+#ifdef DISABLE_SERIAL_LOG
+    // 日志走网页(bit2), 不输出串口: GPIO1/3 由计量芯片以低波特率独占(硬件串口),
+    // 开启串口日志会把调试字节灌入计量芯片 RXD。网页"日志"标签页可查看。
+    globalConfig.debug.type = 4;
+#else
     globalConfig.debug.type = 1;
+#endif
 }
 
 void Framework::setup()

@@ -18,9 +18,9 @@ message WifiConfigMessage {
     string pass = 2 [(nanopb).max_size = 30];
     
 	bool is_static = 3;
-	string ip = 4 [(nanopb).max_size = 15];
-	string sn = 5 [(nanopb).max_size = 15];
-	string gw = 6 [(nanopb).max_size = 15];
+	string ip = 4 [(nanopb).max_size = 16]; // 255.255.255.255 加 NUL 需 16 字节
+	string sn = 5 [(nanopb).max_size = 16];
+	string gw = 6 [(nanopb).max_size = 16];
 
 	string ntp = 7 [(nanopb).max_size = 40];
 }

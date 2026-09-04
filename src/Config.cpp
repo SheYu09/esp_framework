@@ -50,7 +50,12 @@ void Config::resetConfig()
     strcpy(globalConfig.http.ota_url, OTA_URL);
 #endif
     globalConfig.http.port = 80;
+#ifdef DISABLE_SERIAL_LOG
+    // 默认网页日志: GPIO1/3 被计量芯片 4800bps 硬件串口占用, 不能开串口日志
+    globalConfig.debug.type = 4;
+#else
     globalConfig.debug.type = 1;
+#endif
 
     if (module)
     {
@@ -110,7 +115,11 @@ void Config::readConfig()
 
     if (!status)
     {
+#ifdef DISABLE_SERIAL_LOG
+        globalConfig.debug.type = 4; // 同上: 默认网页日志, 串口让给计量芯片
+#else
         globalConfig.debug.type = 1;
+#endif
         Debug::AddError(PSTR("readConfig . . . Error"));
         resetConfig();
     }
@@ -120,6 +129,10 @@ void Config::readConfig()
         {
             module->readConfig();
         }
+#ifdef DISABLE_SERIAL_LOG
+        // GPIO1/3 被计量芯片低波特率硬件串口占用, 旧配置若开过 UART0/UART1 日志则强制关掉
+        globalConfig.debug.type &= ~(1 | 8);
+#endif
         Debug::AddInfo(PSTR("readConfig       . . . OK Len: %d"), len);
     }
 }
